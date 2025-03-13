@@ -1,0 +1,58 @@
+# version : Compose 파일의 버전을 의미합니다.
+# services : Compose 에 묶일 서비스들을 의미합니다. 하나의 서비스는 하나의 컨테이너를 의미합니다.
+version: "3"
+
+# ports : 컨테이너에서 외부로 노출할 포트 포워딩을 설정합니다.
+#         형식은 host:container 로 사용되며 여러 개를 지정할 수 있습니다.
+# environment : 컨테이너를 실행할 때 사용한 -e 옵션과 같은 역할을 합니다.
+services:
+  postgres-server : 
+    image: postgres:14.0
+    container_name: postgres-server
+    ports: 
+      - 5432:5432
+    environment:
+      POSTGRES_USER: llseungjun
+      POSTGRES_PASSWORD: 22tmdwns
+      POSTGRES_DB: mydatabase
+    # test : 테스트 할 명령어를 설정합니다.
+    # 이번 챕터에서는 pg_isready 를 이용하여 DB 가 준비상태인지 테스트를 진행하기 때문에 
+    # ["CMD", "pg_isready", "-q", "-U", "myuser", "-d", "mydatabase"] 를 입력합니다.
+    # interval : Healthcheck 간격을 설정합니다.
+    # timeout : Healthcheck 의 timeout 을 설정합니다.
+    # retries : Timeout 의 횟수를 설정합니다.
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-U", "myuser", "-d", "mydatabase"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# build : 
+# context : 이미지를 build 하기 위해 Dockerfile 이 있는 절대경로 또는 상대경로를 설정합니다.
+# dockerfile : context 에서 설정한 경로에 있는 Dockerfile 의 파일명을 입력합니다
+# depends_on :
+# Compose 로 띄워지는 서비스 간의 종속성 순서대로 서비스를 시작할 때 사용합니다.
+# 여기서는 postgres server 가 먼저 실행되고 난 뒤에 Data Generator 를 실행해야 하기 때문에 postgres server 의 서비스 이름인 postgres-server 를 입력합니다.
+# command :
+# Dockerfile 에 작성되어 있는 CMD 를 덮어씁니다.
+# 5) Data Generator on Docker 챕터에서 작성한 Data Generator 를 사용하기 위해서는 postgres server 의 호스트를 변경해야 합니다.
+
+  data-generator: # 여기서는 직접 이미지를 빌드해서 사용
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: data-generator
+    depends_on:
+      # Healthcheck 기능을 사용하기 위해 depends_on 의 parameter 로 condition: service_healthy 를 넣어줍니다.
+      # Postgres server 의 healthcheck 를 Data Generator 에서 적용시키기 위해 postgres-server 밑에 condition 을 추가하였습니다.
+      # - postgres-server -> 기존 설정
+      # 아래는 healthcheck 옵션 반영 후 설정
+      postgres-server:
+        condition: service_healthy
+    command: ["postgres-server"]
+
+# default : 서비스 전체의 기본 네트워크를 수정할 수 있습니다.
+# name : 네트워크의 이름을 작성합니다.
+networks:
+  default:
+    name: mlops-network
